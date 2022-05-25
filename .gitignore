@@ -7,5 +7,7 @@
 # Ignore build directory populated by CI
 build
 
-# Ignore temporary files
+# Ignore moonbeam test files
+moonbeam-types-bundle
+tests
 tmp

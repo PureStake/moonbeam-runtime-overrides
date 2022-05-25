@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, edited, synchronize]
 
+env:
+  MOONBEAM_GIT_REF: "master"
+  MOONBEAM_LAST_CLIENT_TAG: "v0.22.0"
+
 jobs:
 
   list-spec-versions:
@@ -101,3 +105,35 @@ jobs:
         if:  steps.filter.outputs.edited == 'true' || steps.filter.outputs.shared == 'true'
         run: |
           ./scripts/check-tracing-runtime.sh ${{ matrix.spec_version }}
+
+  test-last-tracing-runtime:
+    name: "Test last tracing runtime"
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    needs: ["check-tracing-runtime"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Get moonbeam binary
+        run: |
+          ./scripts/get-moonbeam-binary.sh $MOONBEAM_LAST_CLIENT_TAG
+      - name: "Setup node"
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14.x
+      - name: Copy tests folder
+        run: |
+          rm -rf tests tmp
+          mkdir tests tmp
+          git clone https://github.com/PureStake/moonbeam --depth 1 -b $MOONBEAM_GIT_REF tmp/moonbeam
+          cp -r tmp/moonbeam/moonbeam-types-bundle .
+          cp -r tmp/moonbeam/tests .
+      - name: Typescript tracing tests (against dev service)
+        continue-on-error: true
+        env:
+          ETHAPI_CMD: --ethapi=txpool,debug,trace
+          FORCE_WASM_EXECUTION: true
+          WASM_RUNTIME_OVERRIDES: moonbase-overrides
+        run: ./scripts/test-last-tracing-runtime.sh
